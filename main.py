@@ -114,6 +114,41 @@ class Product(Resource):
             "message": "Success"
         }, 201
 
+    def put(self, product_id: str):
+        """ RESTful PUT method """
+        data = request.get_json()
+
+        try:
+            new_product_id: str = data['new_product_id']
+        except KeyError as key:
+            response = generate400response(f"{key} is required!")
+            return response, 400
+
+        if not isinstance(new_product_id, str):
+            response = generate400response(
+                "'new_product_id' must be a str")
+            return response, 400
+
+        if productExists(product_id):
+            try:
+                cursor.execute(
+                    f"UPDATE Products SET product_id = '{new_product_id}' WHERE product_id = '{product_id}'")
+                db.commit()
+            except Exception as error:
+                response = generate500response(
+                    f"database query failed - {error}")
+                return response, 500
+        else:
+            response = generate400response(
+                f"Product id : {product_id} does not exist!")
+            return response, 400
+
+        return {
+            "status": 201,
+            "message": "Success",
+            "product_id": f"{product_id} replaced with {new_product_id}"
+        }, 201
+
 
 class Location(Resource):
     """Resource for managing warehouse locations on the server"""
@@ -192,20 +227,19 @@ class Location(Resource):
                 "'new_location_id' must be a str")
             return response, 400
 
-        try:
-            if locationExists(location_id):
+        if locationExists(location_id):
+            try:
                 cursor.execute(
                     f"UPDATE Locations SET location_id = '{new_location_id}' WHERE location_id = '{location_id}'")
                 db.commit()
-            else:
-                response = generate400response(
-                    f"Location id : {location_id} does not exist!")
-                return response, 400
-
-        except Exception as error:
-            response = generate500response(
-                f"database query failed - {error}")
-            return response, 500
+            except Exception as error:
+                response = generate500response(
+                    f"database query failed - {error}")
+                return response, 500
+        else:
+            response = generate400response(
+                f"Location id : {location_id} does not exist!")
+            return response, 400
 
         return {
             "status": 201,
