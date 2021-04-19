@@ -52,6 +52,17 @@ def locationExists(location_id: str) -> bool:
         return False
 
 
+def movementExists(movement_id: str) -> bool:
+    """ A function that checks if a product movement exists in the database """
+    cursor.execute(
+        f"SELECT * from Productmovement where movement_id = '{movement_id}'")
+    row = cursor.fetchone()
+    if row is not None:
+        return True
+    else:
+        return False
+
+
 class Product(Resource):
     """Resource for managing products on the server"""
 
@@ -98,6 +109,10 @@ class Product(Resource):
 
         if not isinstance(product_id, str):
             response = generate400response("'product_id' must be a str")
+            return response, 400
+
+        if productExists(product_id):
+            response = generate400response(f"'{product_id}' already exists!")
             return response, 400
 
         try:
@@ -154,7 +169,7 @@ class Location(Resource):
     """Resource for managing warehouse locations on the server"""
 
     def get(self, location_id: str = None):
-        """ RESTful GET handler """
+        """ RESTful GET method """
         try:
             if location_id:
                 cursor.execute(
@@ -196,6 +211,10 @@ class Location(Resource):
 
         if not isinstance(location_id, str):
             response = generate400response("'location_id' must be a str")
+            return response, 400
+
+        if locationExists(location_id):
+            response = generate400response(f"'{location_id}' already exists!")
             return response, 400
 
         try:
@@ -251,13 +270,129 @@ class Location(Resource):
 class ProductMovement(Resource):
     """Resource for managing product movement on the server"""
 
-    def get(self):
-        """ RESTful GET handler """
-        data = request.get_json()
+    def get(self, movement_id: str = None):
+        """ RESTful GET method """
+        try:
+            if movement_id:
+                cursor.execute(
+                    f"SELECT * from Productmovement where movement_id = '{movement_id}'")
+                row = cursor.fetchall()
+                if len(row) > 0:
+                    if row is not None:
+                        data = row[0]
+                        result = {
+                            "movement_id": data[0],
+                            "timestamp": data[1],
+                            "from_location": data[2],
+                            "to_location": data[3],
+                            "product_id": data[4],
+                            "qty": data[5]
+                        }
+                else:
+                    response = generate400response(
+                        f"Movement id : {movement_id} does not exist!")
+                    return response, 400
+            else:
+                cursor.execute(f"SELECT * from Productmovement")
+                rows = cursor.fetchall()
+                if len(rows) > 0:
+                    result = []
+                    for row in rows:
+                        singleResult = {
+                            "movement_id": row[0],
+                            "timestamp": row[1],
+                            "from_location": row[2],
+                            "to_location": row[3],
+                            "product_id": row[4],
+                            "qty": row[5]
+                        }
+                        result.append(singleResult.copy())
+                else:
+                    result = "Empty set!"
+
+        except Exception as error:
+            response = generate500response(f"database query failed - {error}")
+            return response, 500
+
         return {
             "status": 200,
-            "data": data
+            "message": "Success",
+            "data": result
         }, 200
+
+    def post(self):
+        """ RESTful POST method """
+        data = request.get_json()
+
+        try:
+            movement_id: str = data['movement_id']
+            from_location: str = data['from_location']
+            to_location: str = data['to_location']
+            product_id: str = data['product_id']
+            qty: int = data['qty']
+
+        except KeyError as key:
+            response = generate400response(f"{key} is required!")
+            return response, 400
+
+        if not isinstance(movement_id, str):
+            response = generate400response("'movement_id' must be a str")
+            return response, 400
+
+        if movementExists(movement_id):
+            response = generate400response(f"'{movement_id}' already exists")
+            return response, 400
+
+        if not from_location and not to_location:
+            response = generate400response("'Both locations cannot be empty")
+            return response, 400
+
+        if from_location:
+            if not isinstance(from_location, str):
+                response = generate400response("'from_location' must be a str")
+                return response, 400
+
+            if not locationExists(from_location):
+                response = generate400response(
+                    "'from_location' does not exist! Please register the location")
+                return response, 400
+
+        if to_location:
+            if not isinstance(to_location, str):
+                response = generate400response("'to_location' must be a str")
+                return response, 400
+
+            if not locationExists(to_location):
+                response = generate400response(
+                    "'to_location' does not exist! Please register the location")
+                return response, 400
+
+        if not productExists(product_id):
+            response = generate400response(
+                f"{product_id} is not resgistered! Please add product")
+            return response, 400
+
+        if not isinstance(product_id, str):
+            response = generate400response("'product_id' must be a str")
+            return response, 400
+
+        if not isinstance(qty, int):
+            response = generate400response("'qty' must be an int")
+            return response, 400
+
+        try:
+            cursor.execute(
+                f"INSERT INTO Productmovement (movement_id, timestamp, from_location, to_location, product_id, qty) VALUES('{movement_id}','{getISOtimestamp()}','{from_location}', '{to_location}', '{product_id}', '{qty}')")
+            db.commit()
+
+        except Exception as error:
+            response = generate500response(f"database query failed - {error}")
+            return response, 500
+
+        return {
+            "status": 201,
+            "message": "Success"
+        }, 201
 
 
 app = Flask(__name__)
@@ -268,6 +403,9 @@ api.add_resource(Product, '/products', '/products/',
 
 api.add_resource(Location, '/locations', '/locations/',
                  '/locations/<string:location_id>')
+
+api.add_resource(ProductMovement, '/productmovement', '/productmovement/',
+                 '/productmovement/<string:movement_id>')
 
 if __name__ == "__main__":
     app.run(debug=True)  # test environment
