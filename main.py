@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, render_template, make_response
 from flask_restful import Api, Resource
 from datetime import datetime
 from db_connect import *
@@ -61,6 +61,29 @@ def movementExists(movement_id: str) -> bool:
         return True
     else:
         return False
+
+
+def productExistsAtLocation(product_id: str, location_id: str) -> bool:
+    """ A function that checks if a specific product and its location exists in the database """
+    cursor.execute(
+        f"SELECT id from Balance WHERE product_id='{product_id}' AND location_id='{location_id}'")
+    row = cursor.fetchone()
+    if row is not None:
+        return True
+    else:
+        return False
+
+
+def getQtyFromBalance(product_id: str, location_id: str) -> int:
+    """ A function that returns the quantity present in balance for a specific product and location """
+
+    cursor.execute(
+        f"SELECT qty from Balance WHERE product_id='{product_id}' AND location_id='{location_id}'")
+    row = cursor.fetchone()
+    if row is not None:
+        return row[0]
+    else:
+        return 0
 
 
 class Product(Resource):
@@ -381,6 +404,37 @@ class ProductMovement(Resource):
             return response, 400
 
         try:
+            if not from_location and to_location:
+                cursor.execute(
+                    f"INSERT INTO Balance (product_id, location_id, qty) VALUES('{product_id}', '{to_location}', '{qty}')")
+                db.commit()
+
+            if from_location and not to_location:
+                cursor.execute(
+                    f"UPDATE Balance SET qty = qty-{qty} WHERE product_id='{product_id}' and location_id='{from_location}'")
+                db.commit()
+
+            if from_location and to_location:
+
+                if getQtyFromBalance(product_id, from_location) >= qty:
+                    cursor.execute(
+                        f"UPDATE Balance SET qty = qty-{qty} WHERE product_id='{product_id}' and location_id='{from_location}'")
+                    db.commit()
+
+                    if productExistsAtLocation(product_id, to_location):
+                        cursor.execute(
+                            f"UPDATE Balance SET qty = qty+{qty} WHERE product_id='{product_id}' and location_id='{to_location}'")
+                        db.commit()
+
+                    else:
+                        cursor.execute(
+                            f"INSERT INTO Balance (product_id, location_id, qty) VALUES('{product_id}', '{to_location}', '{qty}')")
+
+                else:
+                    response = generate400response(
+                        "Not enough quantity at 'from_location'")
+                    return response, 400
+
             cursor.execute(
                 f"INSERT INTO Productmovement (movement_id, timestamp, from_location, to_location, product_id, qty) VALUES('{movement_id}','{getISOtimestamp()}','{from_location}', '{to_location}', '{product_id}', '{qty}')")
             db.commit()
@@ -395,8 +449,31 @@ class ProductMovement(Resource):
         }, 201
 
 
+class BalanceReport(Resource):
+    def get(self):
+        """ A RESTful GET method """
+
+        headers = {'Content-Type': 'text/html'}
+
+        try:
+            cursor.execute(f"SELECT * from Balance")
+            rows = cursor.fetchall()
+            if len(rows) > 0:
+                result = rows
+            else:
+                return make_response(render_template("no_data.html"), 200, headers)
+
+        except Exception as error:
+            response = generate500response(f"database query failed - {error}")
+            return response, 500
+
+        return make_response(render_template("balance.html", rows=result, mimetype='text/html'), 200, headers)
+
+
 app = Flask(__name__)
 api = Api(app)
+
+api.add_resource(BalanceReport, '/')
 
 api.add_resource(Product, '/products', '/products/',
                  '/products/<string:product_id>')
