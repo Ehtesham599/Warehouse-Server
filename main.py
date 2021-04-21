@@ -405,9 +405,14 @@ class ProductMovement(Resource):
 
         try:
             if not from_location and to_location:
-                cursor.execute(
-                    f"INSERT INTO Balance (product_id, location_id, qty) VALUES('{product_id}', '{to_location}', '{qty}')")
-                db.commit()
+                if productExistsAtLocation(product_id, to_location):
+                    cursor.execute(
+                        f"UPDATE Balance SET qty = qty+{qty} WHERE product_id='{product_id}' and location_id='{to_location}'")
+                    db.commit()
+                else:
+                    cursor.execute(
+                        f"INSERT INTO Balance (product_id, location_id, qty) VALUES('{product_id}', '{to_location}', '{qty}')")
+                    db.commit()
 
             if from_location and not to_location:
                 cursor.execute(
