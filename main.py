@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, make_response
+from flask import Flask, request, render_template, make_response, redirect, flash
 from flask_restful import Api, Resource
 from datetime import datetime
 from db_connect import *
@@ -10,24 +10,6 @@ def getISOtimestamp() -> str:
     """ A function that generates ISO 8601 timestamp """
     date = datetime.now()
     return date.isoformat()
-
-
-def generate400response(error: str) -> dict:
-    """ A function that generates a '400-Bad Request' message """
-    return {
-        "status": 400,
-        "message": "Bad Request",
-        "error": error
-    }
-
-
-def generate500response(error: str) -> dict:
-    """ A function that generates a '500-Internal Server Error' message """
-    return {
-        "status": 500,
-        "message": "Internal Server Error",
-        "error": error
-    }
 
 
 def productExists(product_id: str) -> bool:
@@ -91,6 +73,11 @@ class Product(Resource):
 
     def get(self, product_id: str = None):
         """ RESTful GET method """
+
+        headers = {'Content-Type': 'text/html'}
+        data = []
+        response = None
+
         try:
             if product_id:
                 cursor.execute(
@@ -99,9 +86,7 @@ class Product(Resource):
                 if row is not None:
                     data = row[0]
                 else:
-                    response = generate400response(
-                        f"Product id : {product_id} does not exist!")
-                    return response, 400
+                    response = f"Product id : {product_id} does not exist!"
             else:
                 cursor.execute(f"SELECT * from Products")
                 rows = [res[0] for res in cursor.fetchall()]
@@ -111,32 +96,15 @@ class Product(Resource):
                     data = "Empty set!"
 
         except Exception as error:
-            response = generate500response(f"database query failed - {error}")
-            return response, 500
+            response = f"database query failed - {error}"
 
-        return {
-            "status": 200,
-            "message": "Success",
-            "data": data
-        }, 200
+        return make_response(render_template("product.html", rows=data, errorResponse=response, mimetype='text/html'), 200, headers)
 
     def post(self):
         """ RESTful POST method """
-        data = request.get_json()
+        product_id = request.form.get("productId")
 
-        try:
-            product_id: str = data['product_id']
-        except KeyError as key:
-            response = generate400response(f"{key} is required!")
-            return response, 400
-
-        if not isinstance(product_id, str):
-            response = generate400response("'product_id' must be a str")
-            return response, 400
-
-        if productExists(product_id):
-            response = generate400response(f"'{product_id}' already exists!")
-            return response, 400
+        response = None
 
         try:
             cursor.execute(
@@ -144,48 +112,12 @@ class Product(Resource):
             db.commit()
 
         except Exception as error:
-            response = generate500response(f"database query failed - {error}")
-            return response, 500
+            response = f"database query failed - {error}"
 
-        return {
-            "status": 201,
-            "message": "Success"
-        }, 201
+        if response:
+            print(response)
 
-    def put(self, product_id: str):
-        """ RESTful PUT method """
-        data = request.get_json()
-
-        try:
-            new_product_id: str = data['new_product_id']
-        except KeyError as key:
-            response = generate400response(f"{key} is required!")
-            return response, 400
-
-        if not isinstance(new_product_id, str):
-            response = generate400response(
-                "'new_product_id' must be a str")
-            return response, 400
-
-        if productExists(product_id):
-            try:
-                cursor.execute(
-                    f"UPDATE Products SET product_id = '{new_product_id}' WHERE product_id = '{product_id}'")
-                db.commit()
-            except Exception as error:
-                response = generate500response(
-                    f"database query failed - {error}")
-                return response, 500
-        else:
-            response = generate400response(
-                f"Product id : {product_id} does not exist!")
-            return response, 400
-
-        return {
-            "status": 201,
-            "message": "Success",
-            "product_id": f"{product_id} replaced with {new_product_id}"
-        }, 201
+        return redirect("/products")
 
 
 class Location(Resource):
@@ -193,6 +125,11 @@ class Location(Resource):
 
     def get(self, location_id: str = None):
         """ RESTful GET method """
+
+        headers = {'Content-Type': 'text/html'}
+        data = []
+        response = None
+
         try:
             if location_id:
                 cursor.execute(
@@ -201,9 +138,8 @@ class Location(Resource):
                 if row is not None:
                     data = row[0]
                 else:
-                    response = generate400response(
-                        f"Location id : {location_id} does not exist!")
-                    return response, 400
+                    response = f"Location id : {location_id} does not exist!"
+
             else:
                 cursor.execute(f"SELECT * from Locations")
                 rows = [res[0] for res in cursor.fetchall()]
@@ -213,32 +149,13 @@ class Location(Resource):
                     data = "Empty set!"
 
         except Exception as error:
-            response = generate500response(f"database query failed - {error}")
-            return response, 500
+            response = f"database query failed - {error}"
 
-        return {
-            "status": 200,
-            "message": "Success",
-            "data": data
-        }, 200
+        return make_response(render_template("location.html", rows=data, errorResponse=response, mimetype='text/html'), 200, headers)
 
     def post(self):
         """ RESTful POST method """
-        data = request.get_json()
-
-        try:
-            location_id: str = data['location_id']
-        except KeyError as key:
-            response = generate400response(f"{key} is required!")
-            return response, 400
-
-        if not isinstance(location_id, str):
-            response = generate400response("'location_id' must be a str")
-            return response, 400
-
-        if locationExists(location_id):
-            response = generate400response(f"'{location_id}' already exists!")
-            return response, 400
+        location_id = request.form.get("locationId")
 
         try:
             cursor.execute(
@@ -246,48 +163,12 @@ class Location(Resource):
             db.commit()
 
         except Exception as error:
-            response = generate500response(f"database query failed - {error}")
-            return response, 500
+            response = f"database query failed - {error}"
 
-        return {
-            "status": 201,
-            "message": "Success"
-        }, 201
+        if response:
+            print(response)
 
-    def put(self, location_id: str):
-        """ RESTful PUT method """
-        data = request.get_json()
-
-        try:
-            new_location_id: str = data['new_location_id']
-        except KeyError as key:
-            response = generate400response(f"{key} is required!")
-            return response, 400
-
-        if not isinstance(new_location_id, str):
-            response = generate400response(
-                "'new_location_id' must be a str")
-            return response, 400
-
-        if locationExists(location_id):
-            try:
-                cursor.execute(
-                    f"UPDATE Locations SET location_id = '{new_location_id}' WHERE location_id = '{location_id}'")
-                db.commit()
-            except Exception as error:
-                response = generate500response(
-                    f"database query failed - {error}")
-                return response, 500
-        else:
-            response = generate400response(
-                f"Location id : {location_id} does not exist!")
-            return response, 400
-
-        return {
-            "status": 201,
-            "message": "Success",
-            "location_id": f"{location_id} replaced with {new_location_id}"
-        }, 201
+        return redirect("/locations")
 
 
 class ProductMovement(Resource):
@@ -295,6 +176,17 @@ class ProductMovement(Resource):
 
     def get(self, movement_id: str = None):
         """ RESTful GET method """
+
+        headers = {'Content-Type': 'text/html'}
+        result = []
+        products = []
+        locations = []
+        cursor.execute(f"SELECT * from Products")
+        products = [res[0] for res in cursor.fetchall()]
+        cursor.execute(f"SELECT * from Locations")
+        locations = [res[0] for res in cursor.fetchall()]
+        response = None
+
         try:
             if movement_id:
                 cursor.execute(
@@ -312,14 +204,11 @@ class ProductMovement(Resource):
                             "qty": data[5]
                         }
                 else:
-                    response = generate400response(
-                        f"Movement id : {movement_id} does not exist!")
-                    return response, 400
+                    response = f"Movement id : {movement_id} does not exist!"
             else:
                 cursor.execute(f"SELECT * from Productmovement")
                 rows = cursor.fetchall()
                 if len(rows) > 0:
-                    result = []
                     for row in rows:
                         singleResult = {
                             "movement_id": row[0],
@@ -331,79 +220,42 @@ class ProductMovement(Resource):
                         }
                         result.append(singleResult.copy())
                 else:
-                    result = "Empty set!"
+                    response = "Empty set!"
 
         except Exception as error:
-            response = generate500response(f"database query failed - {error}")
-            return response, 500
+            response = f"database query failed - {error}"
 
-        return {
-            "status": 200,
-            "message": "Success",
-            "data": result
-        }, 200
+        return make_response(render_template("product_movement.html", result=result, products=products, locations=locations, errorResponse=response, mimetype='text/html'), 200, headers)
 
     def post(self):
         """ RESTful POST method """
-        data = request.get_json()
 
-        try:
-            movement_id: str = data['movement_id']
-            from_location: str = data['from_location']
-            to_location: str = data['to_location']
-            product_id: str = data['product_id']
-            qty: int = data['qty']
+        movement_id = request.form.get("movementId")
+        from_location = request.form.get("fromLocation")
+        to_location = request.form.get("toLocation")
+        product_id = request.form.get("productId")
+        qty = int(request.form.get("qty"))
 
-        except KeyError as key:
-            response = generate400response(f"{key} is required!")
-            return response, 400
+        if from_location == "Select":
+            from_location = None
 
-        if not isinstance(movement_id, str):
-            response = generate400response("'movement_id' must be a str")
-            return response, 400
+        if to_location == "Select":
+            to_location = None
 
         if movementExists(movement_id):
-            response = generate400response(f"'{movement_id}' already exists")
-            return response, 400
+            response = f"'{movement_id}' already exists"
 
         if not from_location and not to_location:
-            response = generate400response("'Both locations cannot be empty")
-            return response, 400
-
-        if from_location:
-            if not isinstance(from_location, str):
-                response = generate400response("'from_location' must be a str")
-                return response, 400
-
-            if not locationExists(from_location):
-                response = generate400response(
-                    "'from_location' does not exist! Please register the location")
-                return response, 400
-
-        if to_location:
-            if not isinstance(to_location, str):
-                response = generate400response("'to_location' must be a str")
-                return response, 400
-
-            if not locationExists(to_location):
-                response = generate400response(
-                    "'to_location' does not exist! Please register the location")
-                return response, 400
-
-        if not productExists(product_id):
-            response = generate400response(
-                f"{product_id} is not resgistered! Please add product")
-            return response, 400
-
-        if not isinstance(product_id, str):
-            response = generate400response("'product_id' must be a str")
-            return response, 400
+            response = "'Both locations cannot be empty"
 
         if not isinstance(qty, int):
-            response = generate400response("'qty' must be an int")
-            return response, 400
+            response = "'qty' must be an int"
 
         try:
+
+            if not productExists(product_id):
+                response = f"{product_id} is not resgistered! Please add product"
+
             if not from_location and to_location:
                 if productExistsAtLocation(product_id, to_location):
                     cursor.execute(
@@ -436,22 +288,20 @@ class ProductMovement(Resource):
                             f"INSERT INTO Balance (product_id, location_id, qty) VALUES('{product_id}', '{to_location}', '{qty}')")
 
                 else:
-                    response = generate400response(
-                        "Not enough quantity at 'from_location'")
-                    return response, 400
+                    response = "Not enough quantity at 'from_location'"
+                    flash(response)
 
             cursor.execute(
                 f"INSERT INTO Productmovement (movement_id, timestamp, from_location, to_location, product_id, qty) VALUES('{movement_id}','{getISOtimestamp()}','{from_location}', '{to_location}', '{product_id}', '{qty}')")
             db.commit()
 
         except Exception as error:
-            response = generate500response(f"database query failed - {error}")
-            return response, 500
+            response = f"database query failed - {error}"
 
-        return {
-            "status": 201,
-            "message": "Success"
-        }, 201
+        if response:
+            print(response)
+
+        return redirect("/productmovement")
 
 
 class BalanceReport(Resource):
@@ -459,6 +309,8 @@ class BalanceReport(Resource):
         """ A RESTful GET method """
 
         headers = {'Content-Type': 'text/html'}
+        response = None
+        result = []
 
         try:
             cursor.execute(f"SELECT * from Balance")
@@ -466,13 +318,12 @@ class BalanceReport(Resource):
             if len(rows) > 0:
                 result = rows
             else:
-                return make_response(render_template("no_data.html"), 200, headers)
+                response = "Empty Set"
 
         except Exception as error:
-            response = generate500response(f"database query failed - {error}")
-            return response, 500
+            response = f"database query failed - {error}"
 
-        return make_response(render_template("balance.html", rows=result, mimetype='text/html'), 200, headers)
+        return make_response(render_template("index.html", rows=result, errorResponse=response, mimetype='text/html'), 200, headers)
 
 
 app = Flask(__name__)
