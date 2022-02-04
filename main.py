@@ -490,4 +490,4 @@ api.add_resource(ProductMovement, '/productmovement', '/productmovement/',
                  '/productmovement/<string:movement_id>')
 
 if __name__ == "__main__":
-    app.run(debug=True)  # test environment
+    app.run(debug=True, port=8080, host='0.0.0.0')  # test environment
